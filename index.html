@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ular Tangga Matematika</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  🎲 Ular Tangga Matematika
+</header>
+
+<main class="game">
+
+  <section class="board-wrap">
+    <svg id="svg"></svg>
+    <div id="board"></div>
+  </section>
+
+  <section class="panel">
+    <p class="turn">Giliran: <b id="turn">Player 1</b></p>
+    <div id="dice">🎲</div>
+    <button id="roll">Lempar Dadu</button>
+  </section>
+
+</main>
+
+<div id="toast"></div>
+
+<div id="modal">
+  <div class="box">
+    <h3 id="question"></h3>
+    <p class="timer">⏱ <span id="time">15</span> detik</p>
+    <input type="number" id="answer" placeholder="Jawaban">
+    <button onclick="submit()">Jawab</button>
+  </div>
+</div>
+
+<script>
+/* ===== DATA ===== */
+const ladders={3:22,8:26,20:41,28:55,50:72,63:81};
+const snakes ={99:54,95:75,88:24,76:58,67:32,45:10};
+
+let pos=[1,1];
+let player=0;
+let rollValue=0;
+let correct=0;
+let landed="normal";
+let timer=15;
+let timerInt;
+
+/* ===== BOARD ===== */
+const board=document.getElementById("board");
+for(let i=100;i>=1;i--){
+  const d=document.createElement("div");
+  d.className="cell";
+  d.id="c"+i;
+  d.textContent=i;
+  board.appendChild(d);
+}
+const cell=n=>document.getElementById("c"+n);
+
+/* ===== DRAW ULAR & TANGGA ===== */
+const svg=document.getElementById("svg");
+function drawLines(){
+  svg.innerHTML="";
+  svg.setAttribute("width",board.offsetWidth);
+  svg.setAttribute("height",board.offsetHeight);
+  const center=c=>({
+    x:c.offsetLeft+c.offsetWidth/2,
+    y:c.offsetTop+c.offsetHeight/2
+  });
+  for(let s in ladders){
+    let a=center(cell(s)),b=center(cell(ladders[s]));
+    svg.innerHTML+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="ladder"/>`;
+  }
+  for(let s in snakes){
+    let a=center(cell(s)),b=center(cell(snakes[s]));
+    svg.innerHTML+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="snake"/>`;
+  }
+}
+setTimeout(drawLines,300);
+window.onresize=drawLines;
+
+/* ===== DADU ===== */
+const dice=document.getElementById("dice");
+const rollBtn=document.getElementById("roll");
+
+rollBtn.onclick=()=>{
+  rollBtn.disabled=true;
+
+  dice.classList.remove("spin");
+  void dice.offsetWidth;
+  dice.classList.add("spin");
+
+  let i=0;
+  const spin=setInterval(()=>{
+    dice.textContent=Math.floor(Math.random()*6)+1;
+    if(++i>15){
+      clearInterval(spin);
+      dice.classList.remove("spin");
+      rollValue=parseInt(dice.textContent);
+      moveStep(pos[player],pos[player]+rollValue,afterMove);
+    }
+  },90);
+};
+
+/* ===== MOVE ===== */
+function moveStep(from,to,cb){
+  let cur=from;
+  let step=from<to?1:-1;
+  const walk=setInterval(()=>{
+    cur+=step;
+    pos[player]=cur;
+    update();
+    if(cur===to){
+      clearInterval(walk);
+      cb();
+    }
+  },120);
+}
+
+/* ===== LAND ===== */
+function afterMove(){
+  const p=pos[player];
+  if(ladders[p]){ landed="ladder"; toast("🪜 KENA TANGGA"); }
+  else if(snakes[p]){ landed="snake"; toast("🐍 KENA ULAR"); }
+  else{ landed="normal"; toast("⬜ PETAK BIASA"); }
+  setTimeout(showQuestion,600);
+}
+
+/* ===== SOAL + TIMER ===== */
+function showQuestion(){
+  let p=pos[player],a,b;
+  if(p<=30){a=r(1,10);b=r(1,10);correct=a+b;setQ(`${a} + ${b}`);}
+  else if(p<=70){a=r(5,15);b=r(2,10);correct=a*b;setQ(`${a} × ${b}`);}
+  else{a=r(20,50);b=r(2,10);correct=Math.floor(a/b);setQ(`${a} ÷ ${b}`);}
+
+  document.getElementById("answer").value="";
+  document.getElementById("modal").style.display="flex";
+
+  timer=15;
+  document.getElementById("time").textContent=timer;
+
+  timerInt=setInterval(()=>{
+    timer--;
+    document.getElementById("time").textContent=timer;
+    if(timer===0){
+      clearInterval(timerInt);
+      document.getElementById("modal").style.display="none";
+      apply(false);
+    }
+  },1000);
+}
+function setQ(q){document.getElementById("question").textContent=q;}
+
+function submit(){
+  clearInterval(timerInt);
+  const v=parseInt(document.getElementById("answer").value);
+  document.getElementById("answer").value="";
+  document.getElementById("modal").style.display="none";
+  apply(v===correct);
+}
+
+/* ===== RULE ===== */
+function apply(right){
+  const from=pos[player];
+  if(landed==="ladder" && right) moveStep(from,ladders[from],endTurn);
+  else if(landed==="snake" && !right) moveStep(from,snakes[from],endTurn);
+  else if(landed==="normal" && !right) moveStep(from,Math.max(1,from-rollValue),endTurn);
+  else endTurn();
+}
+
+/* ===== TURN ===== */
+function endTurn(){
+  if(pos[player]===100){
+    setTimeout(()=>alert(`🎉 Player ${player+1} MENANG!`),300);
+    return;
+  }
+  player=player?0:1;
+  document.getElementById("turn").textContent="Player "+(player+1);
+  rollBtn.disabled=false;
+}
+
+/* ===== UI ===== */
+function update(){
+  document.querySelectorAll(".cell").forEach(c=>c.classList.remove("p1","p2"));
+  cell(pos[0]).classList.add("p1");
+  cell(pos[1]).classList.add("p2");
+}
+update();
+
+const toast=t=>{
+  const d=document.getElementById("toast");
+  d.textContent=t;
+  d.className="show";
+  setTimeout(()=>d.className="",900);
+};
+const r=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+</script>
+
+</body>
+</html>
